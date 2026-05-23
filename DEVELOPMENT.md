@@ -1,4 +1,4 @@
-- kat
+- kas
 - sstate
 
 - preempt rt

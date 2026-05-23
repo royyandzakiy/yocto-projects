@@ -130,7 +130,7 @@ local_conf_header:
 First, install `kas` if you haven't:
 
 ```bash
-pip install kas
+sudo apt install kas # or pip install kas
 ```
 
 Then build (this will take 1-3 hours on first run):
