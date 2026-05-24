@@ -2,7 +2,7 @@
 - preempt rt
 - ota handling dual switching: rauc
 - secure boot & chain of trust
-- tfm if possible
+- tfa
 
 - esp32 flasher
 - zephyr flasher
