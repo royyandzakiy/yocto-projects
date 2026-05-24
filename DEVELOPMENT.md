@@ -9,6 +9,8 @@
 
 - on rpi4b with uart
 - qt
+- cpp23
+- vcpkg
 
 - custom board and dts
 - handle sbom
