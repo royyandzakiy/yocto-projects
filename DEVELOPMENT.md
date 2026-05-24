@@ -8,6 +8,7 @@
 - zephyr flasher
 
 - on rpi4b with uart
+- qt
 
 - custom board and dts
 - handle sbom
