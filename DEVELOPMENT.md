@@ -1,16 +1,18 @@
-- kas
 - sstate
-
 - preempt rt
-- on rpi4b with uart
-- ota handling dual switching: swupdate, rauc
+- ota handling dual switching: rauc
 - secure boot & chain of trust
 - tfm if possible
-- custom board and dts
-- handle sbom
 
 - esp32 flasher
 - zephyr flasher
+
+- on rpi4b with uart
+
+- custom board and dts
+- handle sbom
+
+- kas
 
 ---
 
