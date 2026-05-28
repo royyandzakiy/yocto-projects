@@ -1,3 +1,18 @@
+## To Do
+- [qemuarm64-custom-layer](qemuarm64-custom-layer.md)
+- [qemuarm64-dts-led](qemuarm64-dts-led.md)
+- [rpi-esp32-flasher](rpi-esp32-flasher.md)
+- [qemuarm64-build-preemptrt](qemuarm64-build-preemptrt.md)
+- [qemuarm64-build-ruac](qemuarm64-build-ruac.md)
+
+## Done
+- [qemuarm64-build-1](qemuarm64-build-1.md)
+- [qemuarm64-build-2](qemuarm64-build-2.md)
+- [qemuarm64-build-kas-1 (fail)](qemuarm64-build-kas-1.md)
+
+
+---
+
 - sstate
 - preempt rt
 - ota handling dual switching: rauc
