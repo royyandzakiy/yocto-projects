@@ -1,57 +1,15 @@
-# meta-roy
+## Yocto meta-roix Layer Build - README (Scarthgap)
 
-Custom Yocto layer for Raspberry Pi 4 (64-bit) — headless base image with SSH, UART serial console, and eth0 DHCP.
-
-**Branch:** `scarthgap`
-
----
-
-## What it does
-
-- Builds `roy-image-base` on top of `core-image-base`
-- Enables OpenSSH server with root login (dev mode)
-- Configures eth0 with DHCP via systemd-networkd (dropped into rootfs at build time)
-- Enables UART on `serial0` via `ENABLE_UART = "1"` and `dtparam=uart0_console` — the proven working approach
-- Enables I2C and SPI
-- Uses `systemd` as init manager via a minimal custom distro (`roy`)
+### Build Environment
+- WSL2 (Ubuntu/Debian)
+- Target: Raspberry Pi 4B (64-bit) with UART serial console + Ethernet SSH
+- Image: `roix-base` (custom layer, includes SSH + systemd-networkd)
+- Layer: `meta-roix` | Distro: `roix` (Roy Linux) | Machine: `raspberrypi4-64-roix`
+- Yocto Version: **Scarthgap** (latest LTS)
 
 ---
 
-## Directory structure
-
-```
-meta-roy/
-├── conf/
-│   ├── layer.conf
-│   ├── distro/
-│   │   └── roy.conf                    # custom distro, inherits poky
-│   └── machine/
-│       └── raspberrypi4-64-roy.conf    # extends meta-raspberrypi machine conf
-├── recipes-core/
-│   └── images/
-│       └── roy-image-base.bb           # the image recipe
-└── README.md
-```
-
----
-
-## Dependencies
-
-| Layer | Branch | Source |
-|---|---|---|
-| poky/meta | scarthgap | https://github.com/yoctoproject/poky |
-| poky/meta-poky | scarthgap | same |
-| poky/meta-yocto-bsp | scarthgap | same |
-| meta-raspberrypi | scarthgap | https://github.com/agherzan/meta-raspberrypi |
-| meta-openembedded/meta-oe | scarthgap | https://github.com/openembedded/meta-openembedded |
-| meta-openembedded/meta-python | scarthgap | same |
-| meta-openembedded/meta-networking | scarthgap | same |
-
----
-
-## Setup
-
-### 1. Clone dependencies
+### 1. Clone Repositories
 
 ```bash
 mkdir -p ~/project-coding/yocto && cd ~/project-coding/yocto
@@ -59,16 +17,20 @@ mkdir -p ~/project-coding/yocto && cd ~/project-coding/yocto
 git clone -b scarthgap https://github.com/yoctoproject/poky
 git clone -b scarthgap https://github.com/agherzan/meta-raspberrypi        meta-layers/meta-raspberrypi
 git clone -b scarthgap https://github.com/openembedded/meta-openembedded   meta-layers/meta-openembedded
-# place meta-roy at meta-layers/meta-roy
+# place meta-roix at meta-layers/meta-roix
 ```
 
-### 2. Init build environment
+---
+
+### 2. Setup Build Environment
 
 ```bash
-source poky/oe-init-build-env build-roy-image
+source poky/oe-init-build-env builds/build-roix
 ```
 
-### 3. Set bblayers.conf
+---
+
+### 3. Configure `conf/bblayers.conf`
 
 ```bitbake
 POKY_BBLAYERS_CONF_VERSION = "2"
@@ -82,15 +44,17 @@ BBLAYERS ?= " \
   /path/to/meta-layers/meta-openembedded/meta-oe \
   /path/to/meta-layers/meta-openembedded/meta-python \
   /path/to/meta-layers/meta-openembedded/meta-networking \
-  /path/to/meta-layers/meta-roy \
+  /path/to/meta-layers/meta-roix \
   "
 ```
 
-### 4. Set local.conf
+---
 
-```bitbake
-MACHINE = "raspberrypi4-64-roy"
-DISTRO  = "roy"
+### 4. Configure `conf/local.conf`
+
+```ini
+MACHINE = "raspberrypi4-64-roix"
+DISTRO  = "roix"
 
 USER_CLASSES ?= "buildstats"
 PATCHRESOLVE  = "noop"
@@ -105,110 +69,167 @@ BB_DISKMON_DIRS ??= "\
     HALT,/tmp,10M,1K"
 ```
 
-### 5. Build
+---
+
+### 5. Build Image
 
 ```bash
-bitbake roy-image-base
+bitbake roix-base
 ```
 
-Output image lands in `tmp/deploy/images/raspberrypi4-64-roy/`.
+*(Takes 1-3 hours on first build)*
 
 ---
 
-## Hardware defaults
+### 6. Locate Image
 
-| Feature | Setting |
-|---|---|
-| Serial console | `serial0` at 115200 (maps to GPIO 14/15) |
-| UART config | `ENABLE_UART = "1"` + `dtparam=uart0_console` |
-| I2C | Enabled |
-| SPI | Enabled |
-| Ethernet | eth0, DHCP via systemd-networkd |
-| SSH | OpenSSH, root login enabled (`debug-tweaks`) |
-| Hostname | `roypi` |
+```bash
+cd tmp/deploy/images/raspberrypi4-64-roix/
 
-> **Note:** `debug-tweaks` allows empty root password — fine for development,
-> remove it for any production or exposed deployment.
+# Each build writes a new timestamped image; grab the latest:
+ls -t *rootfs-*.wic.bz2 | head -1
+```
+
+The image you flash is `roix-base-raspberrypi4-64-roix.rootfs-<TIMESTAMP>.wic.bz2`,
+with a matching `.wic.bmap` (block map) sitting next to it.
+
+> The non-timestamped `roix-base-raspberrypi4-64-roix.rootfs.wic.bz2` is just a
+> **symlink** to the latest build — `bzip2 -d` refuses to decompress it in place
+> ("not a regular file"). Always operate on the timestamped file, or decompress
+> to a new file with `bunzip2 -kc <img> > out.wic` (`-k` keep, `-c` to stdout).
 
 ---
 
-## UART wiring
+### 7. Flash SD Card — directly from WSL2 (no Etcher)
+
+WSL2 doesn't see USB block devices by default. Use **usbipd-win** to attach the
+SD-card reader from Windows into WSL2, then write to it with `bmaptool` or `dd`.
+
+**a) Attach the reader (Windows, admin PowerShell):**
+
+```powershell
+usbipd list                      # find the reader's BUSID (e.g. 2-4)
+usbipd bind   --busid <BUSID>    # one-time, marks it shareable
+usbipd attach --wsl --busid <BUSID>
+```
+
+**b) Identify the device (WSL2):**
+
+```bash
+lsblk -o NAME,SIZE,RM,TYPE,MOUNTPOINTS
+```
+
+The SD card is the **removable** disk (`RM 1`), e.g. `sde 29.2G`.
+
+> ⚠️ **Target the whole disk (`/dev/sde`), never a partition (`/dev/sde1`).**
+> And never your WSL system disk (the large one mounted at `/`). A wrong target
+> wipes it. Device letters can change between sessions — re-check `lsblk` every time.
+
+**c) Unmount anything auto-mounted, then flash:**
+
+```bash
+sudo umount /dev/sde1 2>/dev/null   # harmless if not mounted
+
+IMG=$(ls -t *rootfs-*.wic.bz2 | head -1) && echo "Flashing: $IMG"
+```
+
+*Option A — `bmaptool` (recommended: skips empty blocks, verifies checksums):*
+
+```bash
+sudo apt install -y bmap-tools          # one-time
+sudo bmaptool copy "$IMG" /dev/sde      # reads .bz2 + .bmap automatically
+sudo sync
+```
+
+*Option B — `dd` (always available):*
+
+```bash
+bunzip2 -kc "$IMG" | sudo dd of=/dev/sde bs=4M conv=fsync iflag=fullblock status=progress
+sudo sync
+```
+
+**d) Detach from WSL2 (Windows, admin PowerShell):**
+
+```powershell
+usbipd detach --busid <BUSID>
+```
+
+Then move the card to the Pi and boot.
+
+---
+
+### 8. Connect UART to PC
 
 | USB-to-TTL | RPi GPIO |
-|---|---|
+|------------|----------|
 | GND | Pin 6 |
-| RX | Pin 8 (GPIO14 / TXD) |
-| TX | Pin 10 (GPIO15 / RXD) |
+| RX | Pin 8 (GPIO14/TXD) |
+| TX | Pin 10 (GPIO15/RXD) |
 
 **Serial settings:** `115200 baud, 8N1, no flow control`
 
-Connect with `screen /dev/ttyUSB0 115200` (Linux) or PuTTY (Windows).
-
 ---
 
-## SSH access
+### 9. Boot & Login
 
-Find the RPi IP from the serial console after boot:
+**Via UART (Console):**
+- `screen /dev/ttyUSB0 115200` (Linux) or PuTTY (Windows)
+- Login: `root` (no password)
 
+**Via SSH (Ethernet):**
 ```bash
+# Find RPi IP from serial console (run on RPi):
 ip addr show eth0
-```
 
-Then from your PC:
-
-```bash
+# From your PC:
 ssh root@<rpi-ip-address>
-# no password required (debug-tweaks)
 ```
 
 ---
 
-## Flash SD card
+### Clean Build Commands
 
-Image is at `tmp/deploy/images/raspberrypi4-64-roy/roy-image-base-raspberrypi4-64-roy.wic.bz2`.
+**Per-recipe cleans** (replace `roix-base` with any recipe). Escalating severity:
 
-Use **Balena Etcher** or `dd`:
+| Command | Removes | Keeps | Use when |
+|---------|---------|-------|----------|
+| `bitbake -c clean roix-base` | recipe work dir + its deploy output | sstate, downloads | redo a recipe — replays from sstate, fast |
+| `bitbake -c cleansstate roix-base` | above **+ recipe's sstate cache** | downloads | force a genuine rebuild of that recipe |
+| `bitbake -c cleanall roix-base` | above **+ recipe's downloaded source** | — | recipe broken / corrupt download |
 
-```bash
-bunzip2 -c roy-image-base-raspberrypi4-64-roy.wic.bz2 | sudo dd of=/dev/sdX bs=4M status=progress
-```
+**Whole-build cleanup** (run inside `builds/build-roix/`). Space lives in three dirs
+— `tmp/` (all build output), `downloads/` (`DL_DIR`, upstream tarballs),
+`sstate-cache/` (prebuilt task cache that makes rebuilds fast):
+
+| Task | Command |
+|------|---------|
+| Reclaim space, keep fast rebuilds | `rm -rf tmp` *(sstate replays everything in minutes)* |
+| Full nuke (next build = full 1–3 h + re-download) | `rm -rf tmp sstate-cache downloads` |
+| Prune old flashed images | `rm deploy/images/*/...rootfs-<OLD_TIMESTAMP>.*` |
+| Rebuild image | `bitbake roix-base` |
+| Start completely fresh | `rm -rf builds/build-roix && source poky/oe-init-build-env builds/build-roix` |
+
+> **Recommended:** `rm -rf tmp` only. With `sstate-cache` + `downloads` intact,
+> a full image rebuild takes minutes, not hours. Delete those two only when you're
+> done with the project or truly out of disk.
 
 ---
 
-## Customisation
+### Add Packages to Image
 
-**Static IP** — replace the `[Network]` section in `roy-image-base.bb`'s `setup_eth0_dhcp`:
-
-```ini
-[Match]
-Name=eth0
-
-[Network]
-Address=192.168.1.100/24
-Gateway=192.168.1.1
-DNS=1.1.1.1
-```
-
-**Add packages** — append to `IMAGE_INSTALL` in `roy-image-base.bb`:
+Edit `roix-base.bb`:
 
 ```bitbake
 IMAGE_INSTALL:append = " python3 git vim htop"
 ```
 
----
-
-## Troubleshooting
-
-**`Nothing RPROVIDES 'systemd-networkd'`** — not a standalone package in Yocto. The daemon ships inside `systemd`, pulled in automatically by `INIT_MANAGER = "systemd"`. Do not add it to `IMAGE_INSTALL`.
-
-**Layer not found** — run `bitbake-layers show-layers` and confirm `meta-roy` appears at priority 10. If not, check the path in `bblayers.conf`.
-
-**UART silent** — verify `enable_uart=1` and `dtparam=uart0_console` are present in `/boot/config.txt` on the flashed SD card. Also confirm TX/RX are not swapped on the USB-to-TTL adapter.
-
-**First boot slow** — SSH host key generation on first boot can take 30–60 seconds before the login prompt appears.
+Then rebuild.
 
 ---
 
-## Maintainer
-
-Roy — built with Yocto scarthgap / poky.
+### Notes
+- **Scarthgap** is the 2024 LTS release (supports through 2028)
+- `roix-base` extends `core-image-base` with SSH, UART, I2C, SPI, and eth0 DHCP via systemd-networkd
+- `debug-tweaks` allows empty root password — remove for production
+- First boot may take 30-60 seconds to generate SSH host keys
+- `systemd-networkd` ships inside `systemd` — do not add it separately to `IMAGE_INSTALL`
